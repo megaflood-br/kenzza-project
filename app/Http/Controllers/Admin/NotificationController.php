@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Berkayk\OneSignal\OneSignalClient;
 
@@ -17,7 +18,13 @@ class NotificationController extends Controller
 
     public function index()
     {
-        return view('admin.notifications.create');
+        $userCounts = [
+            'all' => User::count(),
+            'consumer' => User::whereIn('role', ['consumer', 'salon'])->count(),
+            'distributor' => User::where('role', 'distributor')->count(),
+        ];
+
+        return view('admin.notifications.create', compact('userCounts'));
     }
 
     /**
