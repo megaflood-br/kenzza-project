@@ -602,26 +602,15 @@
                                            :class="paymentMethod === 'cartao' ? 'border-[#B8860B] bg-yellow-50' : 'border-gray-200 bg-white hover:border-[#B8860B]'">
                                         <input type="radio" name="pay_method" value="cartao" x-model="paymentMethod" class="hidden">
                                         <span class="font-black text-gray-900 uppercase tracking-widest text-xs mb-1">Cartão</span>
-                                        <span class="text-[9px] text-gray-500 font-bold uppercase">Até 6x Asaas</span>
+                                        <span class="text-[9px] text-gray-500 font-bold uppercase">Até 12x InfinitePay</span>
                                     </label>
                                 </div>
                             </div>
 
-                            {{-- Select de Parcelas (Oculto se PIX) - Agora com cálculo dinâmico de juros --}}
-                            <div x-show="paymentMethod === 'cartao'" x-transition class="mb-6" x-cloak>
-                                <label for="installments_select" class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-2">Opções de Parcelamento</label>
-                                <select x-model="installments" id="installments_select" class="w-full bg-gray-50 border-2 border-gray-100 focus:border-[#B8860B] text-black text-xs font-bold rounded-xl py-3 px-4 outline-none transition-all appearance-none cursor-pointer">
-                                    <template x-for="i in 6" :key="i">
-                                        <option :value="i" x-text="
-                                            (i === 1 ? '1x à vista' : i + 'x') +
-                                            (i <= 3 ? ' sem juros' : ' com juros') +
-                                            ' de R$ ' + calcInstallment(i).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
-                                            (i > 3 ? ' (Total: R$ ' + (calcInstallment(i) * i).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')' : '')
-                                        "></option>
-                                    </template>
-                                </select>
-                                <p class="text-[9px] text-red-500 uppercase font-bold px-2 mt-2" x-show="installments > 3">Juros de 2,99% ao mês aplicados.</p>
-                            </div>
+                            {{-- Parcelas são escolhidas no checkout hospedado da InfinitePay --}}
+                            <p class="text-[9px] text-gray-400 uppercase font-bold px-2 mb-6" x-show="paymentMethod === 'cartao'" x-cloak>
+                                O parcelamento (até 12x) é escolhido na tela segura da InfinitePay.
+                            </p>
 
                             <form id="formCheckoutFinal" action="{{ route('checkout.pagar') }}" method="POST">
                                 @csrf

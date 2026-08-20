@@ -83,26 +83,8 @@
                                     @php
                                         $urlPagamento = '#';
 
-                                        // Verifica se temos o ID externo do Asaas salvo no pedido
-                                        if (!empty($order->external_id)) {
-                                            $asaasKey = env('ASAAS_API_KEY');
-                                            $asaasUrl = env('ASAAS_ENV') === 'production' ? 'https://www.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
-
-                                            // Consulta a API do Asaas e salva em cache por 1 hora para não deixar a tela lenta
-                                            $urlPagamento = \Illuminate\Support\Facades\Cache::remember('asaas_url_' . $order->external_id, 3600, function() use ($asaasUrl, $asaasKey, $order) {
-                                                try {
-                                                    $response = \Illuminate\Support\Facades\Http::withHeaders([
-                                                        'access_token' => $asaasKey
-                                                    ])->get("{$asaasUrl}/payments/{$order->external_id}");
-
-                                                    if ($response->successful()) {
-                                                        return $response->json()['invoiceUrl'] ?? '#';
-                                                    }
-                                                } catch (\Exception $e) {
-                                                    return '#';
-                                                }
-                                                return '#';
-                                            });
+                                        if (!empty($order->external_id) && in_array($order->metodo_pagamento, ['cartao', 'card'], true)) {
+                                            $urlPagamento = \App\Services\InfinitePayService::checkoutUrl($order, $order->user);
                                         }
                                     @endphp
 
@@ -127,7 +109,11 @@
                                         </a>
 
                                         <p class="mt-4 text-[8px] text-center text-gray-400 font-bold uppercase tracking-widest leading-relaxed">
-                                            Clique acima para acessar a fatura segura via Asaas
+                                            Clique acima para acessar o pagamento seguro via InfinitePay
+                                        </p>
+                                    @elseif(in_array($order->metodo_pagamento, ['pix', 'pix_manual'], true))
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase text-center mt-4">
+                                            Pagamento via PIX. Assim que o depósito for confirmado, o pedido será liberado.
                                         </p>
                                     @else
                                         <p class="text-[10px] text-red-400 font-bold uppercase text-center mt-4">

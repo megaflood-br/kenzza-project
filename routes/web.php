@@ -112,7 +112,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/checkout/endereco-ajax', [CheckoutController::class, 'salvarEnderecoAjax'])->name('checkout.endereco-ajax');
 
     // --- CORREÇÃO: MUDANÇA DE LOCAL DAS ROTAS DE CHECKOUT ---
-    // Retiradas do middleware profile.complete para evitar loops de sessão e quedas de redirecionamento no Asaas
+    // Retiradas do middleware profile.complete para evitar loops de sessão e quedas de redirecionamento no checkout
     Route::post('/checkout/pagar', [CheckoutController::class, 'checkout'])->name('checkout.pagar');
     Route::match(['get', 'post'], '/checkout/pagamento', [CheckoutController::class, 'paymentView'])->name('checkout.payment');
     Route::post('/checkout/processar/{method}', [CheckoutController::class, 'processPayment'])->name('checkout.process');
