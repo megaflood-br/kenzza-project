@@ -4,11 +4,19 @@
             <h2 class="font-black text-2xl text-gray-900 uppercase tracking-tighter">
                 Disparo de <span class="text-[#c5a059]">Push</span>
             </h2>
+            <span class="bg-[#c5a059] text-black text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-sm">
+                {{ $userCounts['all'] }} usuário{{ $userCounts['all'] === 1 ? '' : 's' }} cadastrado{{ $userCounts['all'] === 1 ? '' : 's' }}
+            </span>
         </div>
     </x-slot>
 
     <div class="py-12 bg-gray-50 min-h-screen">
-        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8"
+             x-data="{
+                target: 'all',
+                counts: {{ json_encode($userCounts) }},
+                get selectedCount() { return Number(this.counts[this.target] ?? 0); }
+             }">
 
             @if(session('success'))
                 <div class="mb-8 p-5 bg-green-50 border-l-4 border-green-500 text-green-700 font-bold rounded-2xl uppercase text-[10px] tracking-widest shadow-sm flex items-center gap-3">
@@ -16,6 +24,21 @@
                     {{ session('success') }}
                 </div>
             @endif
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Total cadastrados</p>
+                    <p class="mt-2 font-black text-3xl text-gray-900 tracking-tighter">{{ $userCounts['all'] }}</p>
+                </div>
+                <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Consumidores / Salões</p>
+                    <p class="mt-2 font-black text-3xl text-gray-900 tracking-tighter">{{ $userCounts['consumer'] }}</p>
+                </div>
+                <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Distribuidores</p>
+                    <p class="mt-2 font-black text-3xl text-gray-900 tracking-tighter">{{ $userCounts['distributor'] }}</p>
+                </div>
+            </div>
 
             <div class="bg-white shadow-sm rounded-[2rem] sm:rounded-[3rem] border border-gray-100 overflow-hidden">
                 <div class="p-8 sm:p-12">
@@ -49,15 +72,16 @@
                             <div>
                                 <label class="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2 block mb-2">Público-Alvo</label>
                                 <div class="relative">
-                                    <select name="target_role" class="w-full bg-gray-50 border-none rounded-2xl py-4 pl-6 pr-10 text-sm focus:ring-2 focus:ring-[#c5a059] font-bold text-gray-900 shadow-inner cursor-pointer appearance-none transition-all">
-                                        <option value="all">Todos os Usuários</option>
-                                        <option value="consumer">Apenas Consumidores (Salões)</option>
-                                        <option value="distributor">Apenas Distribuidores</option>
+                                    <select name="target_role" x-model="target" class="w-full bg-gray-50 border-none rounded-2xl py-4 pl-6 pr-10 text-sm focus:ring-2 focus:ring-[#c5a059] font-bold text-gray-900 shadow-inner cursor-pointer appearance-none transition-all">
+                                        <option value="all">Todos os Usuários ({{ $userCounts['all'] }})</option>
+                                        <option value="consumer">Apenas Consumidores / Salões ({{ $userCounts['consumer'] }})</option>
+                                        <option value="distributor">Apenas Distribuidores ({{ $userCounts['distributor'] }})</option>
                                     </select>
                                     <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
                                         <svg class="h-4 w-4 text-[#c5a059]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                     </div>
                                 </div>
+                                <p class="mt-3 px-2 text-[10px] font-black uppercase tracking-widest text-[#c5a059]" x-text="selectedCount + (selectedCount === 1 ? ' usuário cadastrado neste público' : ' usuários cadastrados neste público')"></p>
                             </div>
 
                             <div>
