@@ -6,7 +6,7 @@
 
             <h1 class="text-3xl font-black text-gray-900 mt-6 mb-10 uppercase text-center">Formas de Pagamento</h1>
 
-            {{-- 1. SE O PIX JÁ FOI GERADO VIA ASAAS (Fluxo de exibição do QR Code) --}}
+            {{-- 1. SE O PIX JÁ FOI GERADO (Fluxo de exibição do QR Code) --}}
             @if(!empty($pixPayload))
                 <div class="mt-10 p-10 bg-white rounded-[3rem] shadow-2xl border-2 border-green-500 text-center">
                     <p class="font-black uppercase text-xs mb-4 text-green-600 tracking-widest">Seu PIX foi gerado com sucesso!</p>
@@ -46,7 +46,7 @@
                         @csrf
                         <div class="text-center mb-6 mt-2">
                             <h3 class="font-black text-gray-900 uppercase tracking-wider">Cartão de Crédito</h3>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase mt-2">Pague em até 6x via Asaas</p>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase mt-2">Pague em até 12x via InfinitePay</p>
                         </div>
 
                         <div class="mb-6">

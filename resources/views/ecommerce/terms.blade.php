@@ -20,7 +20,7 @@
                     </div>
                     <div class="bg-gray-50 p-8 rounded-[2rem] border-l-4 border-[#B8860B]">
                         <p class="text-gray-600 leading-relaxed text-sm uppercase font-bold tracking-tight">
-                            Informamos que todas as transações financeiras desta loja são processadas via <span class="text-black">Asaas</span>.
+                            Informamos que todas as transações financeiras desta loja são processadas via <span class="text-black">InfinitePay</span>.
                             <br><br>
                             <span class="text-[#B8860B]">Importante:</span> Na fatura do seu cartão de crédito ou comprovante de PIX, a cobrança aparecerá em nome de:
                             <span class="text-black block mt-2 text-base italic font-black">ALYCIA QUEIROZ COSMETICOS LTDA</span>

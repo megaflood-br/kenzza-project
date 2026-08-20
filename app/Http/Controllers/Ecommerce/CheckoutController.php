@@ -3,28 +3,17 @@
 namespace App\Http\Controllers\Ecommerce;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Product;
+use App\Services\InfinitePayService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class CheckoutController extends Controller
 {
-    private $asaasUrl;
-    private $asaasKey;
-
-    public function __construct()
-    {
-        $this->asaasKey = env('ASAAS_API_KEY');
-        $this->asaasUrl = env('ASAAS_ENV') === 'production'
-            ? 'https://www.asaas.com/api/v3'
-            : 'https://sandbox.asaas.com/api/v3';
-    }
-
     public function loginAjax(Request $request)
     {
         $credentials = $request->validate([
@@ -38,7 +27,7 @@ class CheckoutController extends Controller
 
             $rua = $user->logradouro ?? $user->address ?? '';
             $cep = $user->cep ?? $user->zip_code ?? '';
-            $hasAddress = !empty($rua) && !empty($cep);
+            $hasAddress = ! empty($rua) && ! empty($cep);
 
             return response()->json([
                 'sucesso' => true,
@@ -52,8 +41,8 @@ class CheckoutController extends Controller
                     'bairro' => $user->neighborhood ?? $user->bairro ?? '',
                     'cidade' => $user->cidade ?? $user->city ?? '',
                     'estado' => $user->estado ?? $user->state ?? '',
-                    'cep' => preg_replace('/\D/', '', $cep)
-                ]
+                    'cep' => preg_replace('/\D/', '', $cep),
+                ],
             ]);
         }
 
@@ -62,7 +51,7 @@ class CheckoutController extends Controller
 
     public function salvarEnderecoAjax(Request $request)
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return response()->json(['sucesso' => false, 'erro' => 'Não autorizado.'], 401);
         }
 
@@ -95,7 +84,7 @@ class CheckoutController extends Controller
 
     public function checkout(Request $request)
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return redirect()->route('cart.index')->with('error', 'Por favor, faça login para finalizar.');
         }
 
@@ -106,12 +95,7 @@ class CheckoutController extends Controller
 
         $user = Auth::user();
         if (empty($user->cep) && empty($user->zip_code)) {
-            $user->update([
-                'cep' => '12951110', 'zip_code' => '12951110',
-                'logradouro' => 'Rua Machado de Assis', 'numero' => '465',
-                'bairro' => 'Jardim das Cerejeiras', 'cidade' => 'Atibaia', 'estado' => 'SP'
-            ]);
-            $user->refresh();
+            return redirect()->route('cart.index')->with('error', 'Por favor, cadastre seu endereço antes de finalizar.');
         }
 
         $frete = floatval($request->input('shipping_value', 15.00));
@@ -120,159 +104,46 @@ class CheckoutController extends Controller
 
         $metodoEscolhido = $request->input('payment_method', 'pix');
 
-        if ($metodoEscolhido === 'cartao') {
+        if (in_array($metodoEscolhido, ['cartao', 'card'], true)) {
             return $this->processPayment('cartao');
         }
 
         return $this->paymentView();
     }
 
+    /**
+     * Cartão: cria o pedido e redireciona para o checkout hospedado da InfinitePay.
+     */
     public function processPayment($method)
     {
-        if (!Auth::check()) return redirect()->route('cart.index');
-
-        $carrinho = session('cart', []);
-        $coupon = session('coupon');
-
-        if (empty($carrinho)) {
-            return redirect()->route('cart.index')->with('error', 'Carrinho expirado ou vazio.');
+        if (! Auth::check()) {
+            return redirect()->route('cart.index');
         }
 
         try {
-            DB::beginTransaction();
-
-            $subtotal = 0;
-            foreach ($carrinho as $id => $item) {
-                $produto = Product::findOrFail($id);
-                if ($item['quantidade'] > $produto->estoque) {
-                    return redirect()->route('cart.index')->with('error', "O produto {$produto->nome} não possui estoque suficiente.");
-                }
-                $subtotal += ($produto->preco_atual * (int)$item['quantidade']);
-            }
-
-            $desconto = ($coupon && isset($coupon['tipo']) && $coupon['tipo'] === 'percentual') ? ($subtotal * ($coupon['valor'] / 100)) : 0;
-            $frete = session('checkout_shipping_value') !== null ? floatval(session('checkout_shipping_value')) : 15.00;
-            if ($coupon && isset($coupon['tipo']) && $coupon['tipo'] === 'frete_gratis') {
-                $frete = 0;
-            }
-
-            $totalFinal = ($subtotal - $desconto) + $frete;
-            $externalRef = 'KENZZA-' . time();
-
-            $order = Order::create([
-                'user_id' => Auth::id(),
-                'total' => $totalFinal,
-                'status' => 'pendente',
-                'external_id' => $externalRef,
-                'frete' => $frete,
-                'metodo_pagamento' => 'cartao',
-                'shipping_service_id' => session('checkout_shipping_service_id', 1),
-            ]);
-
-            foreach ($carrinho as $id => $item) {
-                $produto = Product::findOrFail($id);
-                $subtotalItem = $produto->preco_atual * (int)$item['quantidade'];
-
-                $order->items()->create([
-                    'product_id'     => $id,
-                    'quantidade'     => $item['quantidade'],
-                    'preco_unitario' => $produto->preco_atual,
-                    'subtotal'       => $subtotalItem,
-                ]);
-
-                $produto->decrement('estoque', (int)$item['quantidade']);
-            }
-
+            $order = $this->criarPedidoPendente('cartao');
             $user = Auth::user();
 
-            // --- INÍCIO DA LÓGICA DE PARCELAMENTO COM JUROS ---
-            $parcelas = (int) request('installments', 1);
-            $totalAsaas = $order->total;
-
-            // Se for maior que 3 parcelas, aplica juros de 2.99% ao mês (Tabela Price)
-            if ($parcelas > 3) {
-                $taxaDeJuros = 0.0299; // 2.99%
-                $valorDaParcela = $totalAsaas * ($taxaDeJuros * pow(1 + $taxaDeJuros, $parcelas)) / (pow(1 + $taxaDeJuros, $parcelas) - 1);
-                $totalAsaas = round($valorDaParcela * $parcelas, 2);
-
-                // Atualiza o valor do pedido no seu banco para refletir o total com juros cobrado do cliente
-                $order->update(['total' => $totalAsaas]);
-            }
-
-            $payloadAsaas = [
-                'customer' => $this->getOrCreateAsaasCustomer($user),
-                'billingType' => 'CREDIT_CARD',
-                'dueDate' => now()->addDays(1)->format('Y-m-d'),
-                'externalReference' => $externalRef,
-                'callback' => [
-                    'successUrl' => route('shop.obrigado'),
-                    'autoRedirect' => true,
-                ]
-            ];
-
-            if ($parcelas > 1) {
-                $payloadAsaas['installmentCount'] = $parcelas;
-                $payloadAsaas['totalValue'] = floatval($totalAsaas);
-                $endpoint = '/installments';
-            } else {
-                $payloadAsaas['value'] = floatval($totalAsaas);
-                $endpoint = '/payments';
-            }
-
-            $response = Http::withHeaders([
-                'access_token' => $this->asaasKey,
-                'Content-Type' => 'application/json'
-            ])->post($this->asaasUrl . $endpoint, $payloadAsaas);
-
-            if ($response->failed()) {
-                throw new \Exception('Erro na API do Asaas ao criar cobrança: ' . $response->body());
-            }
-
-            $asaasData = $response->json();
-
-            // Se for parcelado, buscamos a 1ª parcela gerada pelo Asaas para extrair o Link de Pagamento (invoiceUrl)
-            if ($parcelas > 1) {
-                $installmentId = $asaasData['id'];
-
-                $paymentsResponse = Http::withHeaders([
-                    'access_token' => $this->asaasKey
-                ])->get($this->asaasUrl . "/installments/{$installmentId}/payments");
-
-                if ($paymentsResponse->failed() || empty($paymentsResponse->json()['data'])) {
-                    throw new \Exception('Erro ao buscar as parcelas geradas no Asaas.');
-                }
-
-                $asaasData = $paymentsResponse->json()['data'][0];
-            }
-            // --- FIM DA LÓGICA DE PARCELAMENTO ---
-
-            $order->update(['external_id' => $asaasData['id']]);
-
-            DB::commit();
-
-            try {
-                Mail::send('emails.pedido_criado', compact('user', 'order'), function ($message) use ($user) {
-                    $message->to($user->email)
-                            ->subject("K'enzza - Pedido Recebido! (Aguardando Pagamento)");
-                });
-            } catch (\Exception $e) {
-                Log::error("Erro ao enviar e-mail de template (Cartão): " . $e->getMessage());
-            }
+            $this->enviarEmailPedidoCriado($user, $order, "K'enzza - Pedido Recebido! (Aguardando Pagamento)");
 
             session()->forget(['cart', 'coupon', 'checkout_shipping_value', 'checkout_shipping_service_id']);
 
-            return redirect()->away($asaasData['invoiceUrl']);
-
+            return redirect()->away(InfinitePayService::checkoutUrl($order, $user));
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erro Checkout Asaas Cartão: ' . $e->getMessage());
-            return redirect()->route('cart.index')->with('error', 'Erro Cartão: ' . $e->getMessage());
+            Log::error('Erro Checkout InfinitePay Cartão: '.$e->getMessage());
+
+            return redirect()->route('cart.index')->with('error', 'Erro ao processar o pagamento: '.$e->getMessage());
         }
     }
 
+    /**
+     * PIX: gera QR Code local (chave PIX da loja) e aguarda confirmação manual / conciliação.
+     */
     public function paymentView()
     {
-        if (!Auth::check()) return redirect()->route('cart.index');
+        if (! Auth::check()) {
+            return redirect()->route('cart.index');
+        }
 
         if (session('checkout_shipping_value') === null) {
             session()->put('checkout_shipping_value', 15.00);
@@ -280,165 +151,177 @@ class CheckoutController extends Controller
         }
 
         $order = Order::where('user_id', Auth::id())
-                      ->where('status', 'pendente')
-                      ->where('metodo_pagamento', 'pix')
-                      ->latest()
-                      ->first();
-
-        $pixPayload = '';
-        $asaasPaymentId = '';
+            ->where('status', 'pendente')
+            ->where('metodo_pagamento', 'pix_manual')
+            ->latest()
+            ->first();
 
         try {
-            if (!$order) {
-                $carrinho = session('cart', []);
-                if (empty($carrinho)) {
-                    return redirect()->route('cart.index')->with('error', 'Seu carrinho está vazio.');
-                }
-
-                DB::beginTransaction();
-
-                $subtotal = 0;
-                foreach ($carrinho as $id => $item) {
-                    $produto = Product::findOrFail($id);
-                    if ($item['quantidade'] > $produto->estoque) {
-                        return redirect()->route('cart.index')->with('error', "Estoque insuficiente para o item {$produto->nome}.");
-                    }
-                    $subtotal += ($produto->preco_atual * (int)$item['quantidade']);
-                }
-
-                $coupon = session('coupon');
-                $desconto = ($coupon && isset($coupon['tipo']) && $coupon['tipo'] === 'percentual') ? ($subtotal * ($coupon['valor'] / 100)) : 0;
-                $frete = floatval(session('checkout_shipping_value', 15.00));
-
-                $totalFinal = ($subtotal - $desconto) + $frete;
-                $externalRef = 'KENZZA-' . time();
-
-                $order = Order::create([
-                    'user_id' => Auth::id(),
-                    'total' => $totalFinal,
-                    'status' => 'pendente',
-                    'external_id' => $externalRef,
-                    'frete' => $frete,
-                    'metodo_pagamento' => 'pix',
-                    'shipping_service_id' => session('checkout_shipping_service_id', 1),
-                ]);
-
-                foreach ($carrinho as $id => $item) {
-                    $produto = Product::findOrFail($id);
-                    $subtotalItem = $produto->preco_atual * (int)$item['quantidade'];
-
-                    $order->items()->create([
-                        'product_id'     => $id,
-                        'quantidade'     => $item['quantidade'],
-                        'preco_unitario' => $produto->preco_atual,
-                        'subtotal'       => $subtotalItem,
-                    ]);
-
-                    $produto->decrement('estoque', (int)$item['quantidade']);
-                }
-
+            if (! $order) {
+                $order = $this->criarPedidoPendente('pix_manual');
                 $user = Auth::user();
-                $response = Http::withHeaders([
-                    'access_token' => $this->asaasKey,
-                    'Content-Type' => 'application/json'
-                ])->post($this->asaasUrl . '/payments', [
-                    'customer' => $this->getOrCreateAsaasCustomer($user),
-                    'billingType' => 'PIX',
-                    'value' => floatval($order->total),
-                    'dueDate' => now()->format('Y-m-d'),
-                    'externalReference' => $externalRef,
-                ]);
-
-                if ($response->failed()) {
-                    throw new \Exception('Erro na API do Asaas ao criar PIX: ' . $response->body());
-                }
-
-                $asaasData = $response->json();
-                $asaasPaymentId = $asaasData['id'];
-
-                $order->update(['external_id' => $asaasPaymentId]);
-
-                DB::commit();
-
-                try {
-                    Mail::send('emails.pedido_criado', compact('user', 'order'), function ($message) use ($user) {
-                        $message->to($user->email)
-                                ->subject("K'enzza - Aguardando Pagamento via PIX");
-                    });
-                } catch (\Exception $e) {
-                    Log::error("Erro ao enviar e-mail de template (PIX): " . $e->getMessage());
-                }
-            } else {
-                $asaasPaymentId = $order->external_id;
+                $this->enviarEmailPedidoCriado($user, $order, "K'enzza - Aguardando Pagamento via PIX");
             }
 
-            $pixResponse = Http::withHeaders([
-                'access_token' => $this->asaasKey
-            ])->get($this->asaasUrl . "/payments/{$asaasPaymentId}/pixQrCode");
-
-            if ($pixResponse->failed()) {
-                throw new \Exception('Erro ao buscar QR Code Pix na API do Asaas: ' . $pixResponse->body());
+            $pixKey = trim((string) env('PIX_KEY', ''));
+            if ($pixKey === '') {
+                throw new \Exception('Chave PIX (PIX_KEY) não configurada no ambiente.');
             }
 
-            $pixPayload = $pixResponse->json()['payload'] ?? '';
-
+            $pixPayload = trim($this->gerarPayloadPix($pixKey, "Kenzza Professional", 'Atibaia', $order->total, $order->id));
         } catch (\Exception $e) {
-            if (DB::transactionLevel() > 0) {
-                DB::rollBack();
-            }
-            Log::error('Erro ao gerar PIX Asaas: ' . $e->getMessage());
-            return redirect()->route('cart.index')->with('error', 'Erro no Pagamento: ' . $e->getMessage());
+            Log::error('Erro ao gerar PIX InfinitePay/manual: '.$e->getMessage());
+
+            return redirect()->route('cart.index')->with('error', 'Erro no Pagamento: '.$e->getMessage());
         }
 
         $totalFinal = $order->total;
+
         return view('ecommerce.payment', compact('totalFinal', 'pixPayload', 'order'));
     }
 
     public function confirmPix(Request $request)
     {
-        if (!Auth::check()) return redirect()->route('cart.index');
+        if (! Auth::check()) {
+            return redirect()->route('cart.index');
+        }
 
         $orderId = $request->input('order_id');
         $order = Order::where('user_id', Auth::id())->find($orderId);
 
-        if (!$order) {
+        if (! $order) {
             return redirect()->route('cart.index')->with('error', 'Pedido de referência não localizado.');
         }
 
         $order->update(['status' => 'aguardando_confirmacao']);
         session()->forget(['cart', 'coupon', 'checkout_shipping_value', 'checkout_shipping_service_id']);
 
-        return redirect()->route('shop.home')->with('success', 'Pedido gerado com sucesso!');
+        return redirect()->route('shop.home')->with('success', 'Recebemos seu aviso! Após confirmarmos o PIX, seu pedido será liberado.');
     }
 
-    private function getOrCreateAsaasCustomer($user)
+    private function criarPedidoPendente(string $metodo): Order
     {
-        $cleanCpf = preg_replace('/\D/', '', $user->document ?? $user->cpf ?? '00000000000');
+        $carrinho = session('cart', []);
+        $coupon = session('coupon');
 
-        if (!empty($cleanCpf) && $cleanCpf !== '00000000000') {
-            $search = Http::withHeaders(['access_token' => $this->asaasKey])
-                ->get($this->asaasUrl . '/customers', ['cpfCnpj' => $cleanCpf]);
+        if (empty($carrinho)) {
+            throw new \Exception('Carrinho expirado ou vazio.');
+        }
 
-            if ($search->successful() && !empty($search->json()['data'])) {
-                return $search->json()['data'][0]['id'];
+        DB::beginTransaction();
+
+        try {
+            $subtotal = 0;
+            foreach ($carrinho as $id => $item) {
+                $produto = Product::findOrFail($id);
+                if ($item['quantidade'] > $produto->estoque) {
+                    throw new \Exception("O produto {$produto->nome} não possui estoque suficiente.");
+                }
+                $subtotal += ($produto->preco_atual * (int) $item['quantidade']);
+            }
+
+            $desconto = ($coupon && isset($coupon['tipo']) && $coupon['tipo'] === 'percentual')
+                ? ($subtotal * ($coupon['valor'] / 100))
+                : 0;
+
+            $frete = session('checkout_shipping_value') !== null
+                ? floatval(session('checkout_shipping_value'))
+                : 15.00;
+
+            if ($coupon && isset($coupon['tipo']) && $coupon['tipo'] === 'frete_gratis') {
+                $frete = 0;
+            }
+
+            $totalFinal = ($subtotal - $desconto) + $frete;
+            $externalRef = 'KENZZA-'.time();
+
+            $order = Order::create([
+                'user_id' => Auth::id(),
+                'total' => $totalFinal,
+                'status' => 'pendente',
+                'external_id' => $externalRef,
+                'frete' => $frete,
+                'metodo_pagamento' => $metodo,
+                'shipping_service_id' => session('checkout_shipping_service_id', 1),
+            ]);
+
+            foreach ($carrinho as $id => $item) {
+                $produto = Product::findOrFail($id);
+                $subtotalItem = $produto->preco_atual * (int) $item['quantidade'];
+
+                $order->items()->create([
+                    'product_id' => $id,
+                    'quantidade' => $item['quantidade'],
+                    'preco_unitario' => $produto->preco_atual,
+                    'subtotal' => $subtotalItem,
+                ]);
+
+                $produto->decrement('estoque', (int) $item['quantidade']);
+            }
+
+            DB::commit();
+
+            return $order;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    private function enviarEmailPedidoCriado($user, Order $order, string $assunto): void
+    {
+        try {
+            Mail::send('emails.pedido_criado', compact('user', 'order'), function ($message) use ($user, $assunto) {
+                $message->to($user->email)->subject($assunto);
+            });
+        } catch (\Exception $e) {
+            Log::error('Erro ao enviar e-mail de pedido criado: '.$e->getMessage());
+        }
+    }
+
+    private function gerarPayloadPix($key, $name, $city, $amount, $txid)
+    {
+        $key = preg_replace('/[^a-zA-Z0-9@.\-_]/', '', $key);
+        if (preg_match('/^[0-9]{10,11}$/', $key)) {
+            $key = '+55'.$key;
+        }
+
+        $name = substr(preg_replace('/[^a-zA-Z0-9 ]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $name)), 0, 25);
+        $city = substr(preg_replace('/[^a-zA-Z0-9 ]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $city)), 0, 15);
+
+        $txid = substr(preg_replace('/[^a-zA-Z0-9]/', '', $txid), 0, 25);
+        if (empty($txid)) {
+            $txid = 'KENZZA';
+        }
+
+        $amount = number_format((float) $amount, 2, '.', '');
+
+        $blocoChave = '0014br.gov.bcb.pix01'.str_pad(strlen($key), 2, '0', STR_PAD_LEFT).$key;
+        $campo26 = '26'.str_pad(strlen($blocoChave), 2, '0', STR_PAD_LEFT).$blocoChave;
+        $campo54 = '54'.str_pad(strlen($amount), 2, '0', STR_PAD_LEFT).$amount;
+        $blocoTxId = '05'.str_pad(strlen($txid), 2, '0', STR_PAD_LEFT).$txid;
+        $campo62 = '62'.str_pad(strlen($blocoTxId), 2, '0', STR_PAD_LEFT).$blocoTxId;
+
+        $payload = '000201'.$campo26.'520400005303986'.$campo54.'5802BR'.
+                   '59'.str_pad(strlen($name), 2, '0', STR_PAD_LEFT).$name.
+                   '60'.str_pad(strlen($city), 2, '0', STR_PAD_LEFT).$city.
+                   $campo62.'6304';
+
+        return $payload.$this->crc16($payload);
+    }
+
+    private function crc16($payload)
+    {
+        $crc = 0xFFFF;
+        $poly = 0x1021;
+        for ($i = 0; $i < strlen($payload); $i++) {
+            $crc ^= (ord($payload[$i]) << 8);
+            for ($j = 0; $j < 8; $j++) {
+                $crc = ($crc & 0x8000) ? (($crc << 1) ^ $poly) : ($crc << 1);
+                $crc &= 0xFFFF;
             }
         }
 
-        $create = Http::withHeaders([
-            'access_token' => $this->asaasKey,
-            'Content-Type' => 'application/json'
-        ])->post($this->asaasUrl . '/customers', [
-            'name' => $user->name,
-            'email' => $user->email,
-            'cpfCnpj' => $cleanCpf,
-            'phone' => preg_replace('/\D/', '', $user->phone ?? '11999999999'),
-            'notificationDisabled' => true,
-        ]);
-
-        if ($create->failed()) {
-            throw new \Exception('Erro ao cadastrar cliente no Asaas: ' . $create->body());
-        }
-
-        return $create->json()['id'];
+        return strtoupper(str_pad(dechex($crc), 4, '0', STR_PAD_LEFT));
     }
 }
