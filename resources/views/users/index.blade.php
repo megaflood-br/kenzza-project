@@ -69,14 +69,14 @@
                 @forelse ($users as $user)
                     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between p-6 bg-white rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 gap-6 group">
 
-                        {{-- Avatar e Informações --}}
-                        <div class="flex items-center gap-5 w-full lg:w-auto">
+                        {{-- Avatar e Informações (abre o perfil) --}}
+                        <a href="{{ route('users.show', $user) }}" class="flex items-center gap-5 w-full lg:w-auto min-w-0 group/profile">
                             <div class="w-14 h-14 rounded-full bg-black text-[#c5a059] flex items-center justify-center font-black text-xl uppercase shadow-inner flex-shrink-0">
                                 {{ mb_substr($user->name, 0, 1) }}
                             </div>
-                            <div class="flex-1">
+                            <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-3 mb-1">
-                                    <h4 class="font-bold text-gray-900 text-lg leading-tight">{{ $user->name }}</h4>
+                                    <h4 class="font-bold text-gray-900 text-lg leading-tight group-hover/profile:text-[#c5a059] transition-colors">{{ $user->name }}</h4>
 
                                     {{-- BADGE DINÂMICA INTELIGENTE (PHP 8.0+) --}}
                                     <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest
@@ -110,10 +110,14 @@
                                     </span>
                                 </div>
                             </div>
-                        </div>
+                        </a>
 
-                        {{-- Ações (Editar, Excluir, Sua Conta) --}}
+                        {{-- Ações (Perfil, Editar, Excluir, Sua Conta) --}}
                         <div class="flex items-center gap-3 w-full lg:w-auto pt-4 lg:pt-0 border-t lg:border-0 border-gray-50">
+
+                            <a href="{{ route('users.show', $user) }}" class="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-[#c5a059] px-6 py-3 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#c5a059] hover:text-black transition-all shadow-sm">
+                                Perfil
+                            </a>
 
                             {{-- Botão Editar --}}
                             <a href="{{ route('users.edit', $user->id) }}" class="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-gray-50 text-gray-900 px-6 py-3 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black hover:text-[#c5a059] transition-all shadow-sm">
