@@ -42,6 +42,31 @@ class UserController extends Controller
         return view('users.index', compact('users', 'search', 'role'));
     }
 
+    public function show(User $user)
+    {
+        abort_if(! in_array(Auth::user()->role, ['admin', 'editor', 'manager'], true), 403);
+
+        if (Auth::user()->role === 'manager' && $user->role !== 'representative') {
+            return redirect()->route('users.index')->with('error', 'Acesso negado: Você só pode ver contas de Representantes.');
+        }
+
+        $user->load([
+            'orders' => fn ($query) => $query->with(['items.product'])->latest(),
+            'tickets' => fn ($query) => $query->latest()->limit(5),
+        ]);
+
+        $pedidosPagos = $user->orders->whereIn('status', ['pago', 'aprovado', 'enviado', 'entregue', 'em_separacao']);
+
+        $stats = [
+            'orders_count' => $user->orders->count(),
+            'paid_count' => $pedidosPagos->count(),
+            'ltv' => $pedidosPagos->sum('total'),
+            'last_order_at' => optional($user->orders->first())->created_at,
+        ];
+
+        return view('users.show', compact('user', 'stats'));
+    }
+
     public function create()
     {
         abort_if(!in_array(Auth::user()->role, ['admin', 'editor', 'manager']), 403);
