@@ -1,0 +1,42 @@
+<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px 30px; border: 1px solid #eaeaea; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+
+    <div style="text-align: center; border-bottom: 1px solid #f0f0f0; padding-bottom: 30px; margin-bottom: 30px;">
+        <a href="{{ config('app.url') }}" style="display: inline-block; text-decoration: none;">
+            <img src="https://kenzza.com.br/logo-k-preto.png"
+                 alt="K'enzza Professional"
+                 style="width: 160px; height: auto; border: none;">
+        </a>
+    </div>
+
+    <div style="color: #333333; font-size: 16px; line-height: 1.6;">
+        <p style="font-size: 18px; font-weight: 600; color: #000000; margin-top: 0;">Olá, {{ $user->name }},</p>
+
+        <p>Temos uma excelente notícia! O pagamento do seu pedido <strong>#{{ str_pad($order->id, 5, '0', STR_PAD_LEFT) }}</strong> foi <strong>confirmado com sucesso</strong>! 🎉</p>
+
+        <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 15px 20px; margin: 25px 0; border-radius: 4px;">
+            <p style="margin: 0; font-size: 14px; color: #166534;">Valor Confirmado:</p>
+            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: bold; color: #14532d;">R$ {{ number_format($order->total, 2, ',', '.') }}</p>
+
+            <p style="margin: 15px 0 0 0; font-size: 14px; color: #166534;">Status Atual:</p>
+            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold; color: #000000; text-transform: uppercase;">Em Separação</p>
+        </div>
+
+        <p>A nossa equipe já está separando e embalando os seus produtos com todo o cuidado. Assim que a sua encomenda for despachada, você receberá um novo e-mail contendo o código de rastreamento.</p>
+
+        <div style="text-align: center; margin: 40px 0;">
+            <a href="{{ route('customer.orders') }}" style="background-color: #000000; color: #B8860B; padding: 16px 36px; text-decoration: none; font-size: 14px; font-weight: bold; border-radius: 5px; text-transform: uppercase; letter-spacing: 1px; display: inline-block;">
+                Ver Detalhes do Pedido
+            </a>
+        </div>
+    </div>
+
+    <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #f0f0f0; text-align: center;">
+        <p style="font-size: 12px; color: #999999; line-height: 1.5; margin-bottom: 15px;">
+            Se o botão não funcionar, copie e cole este link no seu navegador:<br>
+            <a href="{{ route('customer.orders') }}" style="color: #B8860B; word-break: break-all; text-decoration: none;">{{ route('customer.orders') }}</a>
+        </p>
+        <p style="font-size: 12px; color: #aaaaaa; margin: 0;">
+            &copy; {{ date('Y') }} K'enzza Professional. Todos os direitos reservados.
+        </p>
+    </div>
+</div>

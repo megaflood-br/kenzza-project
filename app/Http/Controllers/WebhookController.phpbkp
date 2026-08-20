@@ -1,0 +1,83 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Order;
+use Illuminate\Support\Facades\Log;
+
+class WebhookController extends Controller
+{
+    /**
+     * Webhook capturador da InfinitePay
+     */
+    public function handle(Request $request)
+    {
+        $payload = $request->all();
+
+        Log::info('Webhook InfinitePay Recebido:', $payload);
+
+        // Captura o ID externo que passamos na URL.
+        // A InfinitePay costuma devolver em 'order_id' ou dentro do objeto 'metadata'
+        $externalId = $payload['order_id'] ?? ($payload['data']['order_id'] ?? ($payload['reference_id'] ?? null));
+
+        if (!$externalId) {
+            Log::warning('Webhook da InfinitePay recebido mas nenhum ID de pedido válido foi identificado no payload.');
+            return response()->json(['status' => 'error', 'message' => 'ID de referência ausente'], 200);
+        }
+
+        $order = Order::where('external_id', $externalId)->first();
+
+        if ($order) {
+            // Captura o status unificado (A InfinitePay envia 'approved' ou 'confirmed' para sucesso)
+            $statusLink = $payload['status'] ?? ($payload['data']['status'] ?? null);
+
+            if (in_array($statusLink, ['approved', 'paid', 'confirmed'])) {
+
+                // CORREÇÃO: Altera para 'pago' acompanhando as strings do seu banco de dados nacional
+                if ($order->status !== 'pago') {
+                    $order->update([
+                        'status' => 'pago'
+                    ]);
+                    Log::info("Pedido {$order->id} (Ref: {$externalId}) atualizado para PAGO via Webhook.");
+                }
+
+                return response()->json(['status' => 'ok']);
+            }
+
+            Log::info("Pedido localizado mas status ignorado pelo sistema: " . ($statusLink ?? 'N/A'));
+            return response()->json(['status' => 'ignored']);
+        }
+
+        Log::warning("Webhook recebido mas o external_id '{$externalId}' não foi localizado no banco.");
+        return response()->json(['status' => 'not_found'], 200);
+    }
+
+    /**
+     * Webhook capturador do Melhor Envio
+     */
+    public function handleMelhorEnvio(Request $request)
+    {
+        Log::info("Webhook Melhor Envio recebido:", $request->all());
+
+        $shipping = $request->input('shipping');
+
+        if (!$shipping || !isset($shipping['id'])) {
+            return response()->json(['status' => 'ignorado', 'mensagem' => 'Payload vazio ou formato inválido'], 200);
+        }
+
+        $order = Order::where('melhor_envio_id', $shipping['id'])->first();
+
+        if (!$order) {
+            Log::warning("Webhook recebido para ID de frete não encontrado: " . $shipping['id']);
+            return response()->json(['status' => 'erro', 'mensagem' => 'Pedido não localizado'], 404);
+        }
+
+        $order->update([
+            'codigo_rastreio' => $shipping['tracking'] ?? $order->codigo_rastreio,
+            'status_envio'    => $shipping['status'] ?? $order->status_envio
+        ]);
+
+        return response()->json(['status' => 'ok']);
+    }
+}

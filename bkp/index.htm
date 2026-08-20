@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K'enzza Professional | Cosméticos Capilares</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+    <style>
+        /* Reset básico */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Header / Hero Section */
+        .hero {
+            height: 100vh;
+            width: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                        url('bg_header.jpg') no-repeat center center;
+            background-size: cover;
+        }
+
+        .content {
+            z-index: 2;
+            padding: 20px;
+            max-width: 800px;
+        }
+
+        .logo-main {
+            width: 280px;
+            margin-bottom: 30px;
+            filter: drop-shadow(0px 4px 10px rgba(0,0,0,0.5));
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+
+        /* Botão WhatsApp */
+        .btn-whatsapp {
+            display: inline-flex;
+            align-items: center;
+            background-color: #25d366;
+            color: #fff;
+            padding: 18px 35px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.2rem;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+            box-shadow: 0 10px 20px rgba(37, 211, 102, 0.3);
+        }
+
+        .btn-whatsapp:hover {
+            background-color: #128c7e;
+            transform: translateY(-5px);
+        }
+
+        .btn-whatsapp img {
+            width: 25px;
+            margin-right: 10px;
+        }
+
+        /* Footer */
+        footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .logo-main { width: 200px; }
+            .hero { background-position: 70% center; } /* Ajuste para ver o rosto no mobile */
+        }
+    </style>
+</head>
+<body>
+
+    <section class="hero">
+        <div class="content">
+            <img src="logo-kenzza-bco.png" alt="Kenzza Professional" class="logo-main">
+            
+            <h1>Transforme a beleza dos fios</h1>
+            <p>Sua marca de alta performance em cosméticos capilares. <br> 
+               Estamos preparando uma nova experiência para você.</p>
+
+            <a href="https://wa.me/5511937525151?text=Olá! Gostaria de mais informações sobre os produtos Kenzza." 
+               target="_blank" class="btn-whatsapp">
+                Falar com Consultor no WhatsApp
+            </a>
+        </div>
+    </section>
+
+    <footer>
+        &copy; 2026 K'enzza Professional - Todos os direitos reservados.
+    </footer>
+
+</body>
+</html>

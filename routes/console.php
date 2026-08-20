@@ -1,0 +1,13 @@
+<?php
+
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+
+Artisan::command('inspire', function () {
+    $this->comment(Inspiring::quote());
+})->purpose('Display an inspiring quote');
+
+Schedule::command('orders:cancel-pending')->hourly();
+Schedule::command('cart:recover-abandoned')->hourly();
+Schedule::command('cart:recover-abandoned-24h')->hourly();

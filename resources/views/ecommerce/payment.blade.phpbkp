@@ -1,0 +1,49 @@
+<x-store-layout>
+    <div class="mt-6 py-16 bg-gray-50 min-h-screen">
+        <div class="max-w-3xl mx-auto px-6">
+
+            <a href="{{ route('cart.index') }}" class="text-xs font-black uppercase text-gray-500 hover:text-black">← Voltar</a>
+
+            <h1 class="text-3xl font-black text-gray-900 mt-6 mb-10 uppercase text-center">Formas de Pagamento</h1>
+
+            {{-- 1. SE O QR CODE JÁ EXISTE (Fluxo de exibição) --}}
+            @if(isset($qrCode) || isset($pixPayload))
+                <div class="mt-10 p-10 bg-white rounded-[3rem] shadow-2xl border-2 border-green-500 text-center">
+                    <p class="font-black uppercase text-xs mb-4">Escaneie o QR Code</p>
+
+                    <div class="flex justify-center mb-6">
+                        <div class="border-4 border-gray-100 rounded-2xl overflow-hidden p-2 bg-white">
+                            {{-- Gerado em formato PNG em base64 puro sem espaços extras --}}
+                            <img src="data:image/png;base64,{!! base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size(300)->errorCorrection('H')->generate($pixPayload)) !!}">
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-2xl mb-6 break-all">
+                        <span class="font-bold text-sm select-all">{{ $pixPayload }}</span>
+                    </div>
+
+                    <form action="{{ route('checkout.pix.confirm') }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="order_id" value="{{ $order->id }}">
+                        <button type="submit" class="w-full bg-green-600 text-white py-4 rounded-full font-black uppercase">Já realizei o pagamento</button>
+                    </form>
+                </div>
+            @else
+                {{-- 2. SE NÃO EXISTIR, EXIBE OS BOTÕES PARA ESCOLHER --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <a href="{{ route('checkout.process', ['method' => 'card']) }}"
+                       class="bg-white p-10 rounded-[3rem] shadow-xl text-center border-2 border-transparent hover:border-[#B8860B] transition-all">
+                        <h3 class="font-black text-gray-900 uppercase">Cartão de Crédito</h3>
+                    </a>
+
+                    <a href="{{ route('checkout.payment') }}"
+                       class="bg-white p-10 rounded-[3rem] shadow-xl text-center border-2 border-transparent hover:border-green-500 transition-all block">
+                        <h3 class="font-black text-gray-900 uppercase text-green-600">Pagar com PIX</h3>
+                        <p class="text-[10px] text-gray-400 font-bold uppercase mt-2">Gerar QR Code agora</p>
+                    </a>
+                </div> {{-- Fechamento do grid --}}
+            @endif
+
+        </div>
+    </div>
+</x-store-layout>
